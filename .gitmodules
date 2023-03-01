@@ -1,0 +1,12 @@
+[submodule "oadp-operator"]
+	path = oadp-operator
+	url = git@github.com:openshift/oadp-operator.git
+[submodule "velero"]
+	path = velero
+	url = git@github.com:sseago/velero.git
+[submodule "volume-snapshot-mover"]
+	path = volume-snapshot-mover
+	url = git@github.com:eemcmullan/volume-snapshot-mover.git
+[submodule "velero-plugin-for-vsm"]
+	path = velero-plugin-for-vsm
+	url = git@github.com:shubham-pampattiwar/velero-plugin-for-vsm.git
