@@ -1,14 +1,36 @@
+NAMESPACE?=openshift-adp
 REV:=$(shell git rev-parse --short=7 HEAD)
-# REGISTRY?=ttl.sh
+
 # if using ghcr, make public each image before deploying
 # https://github.com/<user>?ecosystem=container&q=demo&tab=packages
 REGISTRY?=ghcr.io/kaovilai/demo-oadp
+
+# if oc is logged in to a cluster, use the registry from the cluster
+# ifeq ($(shell oc whoami 2>/dev/null),)
+# REGISTRY?=ttl.sh
+# else
+# TODO: use oc registry
+# REGISTRY_PROJECT?=$(NAMESPACE)
+# R:=$(shell oc new-project $(REGISTRY_PROJECT))
+# # to push to openshift registry, it must be in project/name format
+# REGISTRY_ROUTE?=$(shell oc registry info)
+# # to not get imagepullbackoff error, use service name instead of route https://github.com/minishift/minishift/pull/1884/files
+# REGISTRY_SVC?=image-registry.openshift-image-registry.svc:5000
+# REGISTRY?=$(REGISTRY_ROUTE)/$(REGISTRY_PROJECT)
+# # run oc registry login
+# R:=$(shell oc registry login)
+# endif
+
 ifeq ($(REGISTRY),ttl.sh)
 	TAG?=-$(REV)-demo:8h
 else
 	TAG?=:$(REV)-demo
 endif
-NAMESPACE?=openshift-adp
+
+.PHONY: registry
+registry:
+	@echo $(REGISTRY)
+
 IMG_OADP_OPERATOR?=$(REGISTRY)/oadp-operator$(TAG)
 IMG_OADP_OPERATOR_BUNDLE?=$(REGISTRY)/oadp-operator-bundle$(TAG)
 IMG_VELERO?=$(REGISTRY)/velero$(TAG)
@@ -21,7 +43,7 @@ all: velero volume-snapshot-mover velero-plugin-for-vsm oadp-operator echo-image
 
 .PHONY: deploy
 deploy: all deploy-oadp-operator
-	# TODO:
+
 .PHONY: echo-images
 echo-images:
 	@echo $(IMG_OADP_OPERATOR)
@@ -35,7 +57,7 @@ echo-images:
 # build and push operator and bundle image
 # rm -r .git is a workaround for https://github.com/golang/go/issues/53532
 oadp-operator: DEPLOY_TMP:=$(shell mktemp -d)/
-oadp-operator: oadp-operator-replace-env
+oadp-operator: oadp-operator-replace-env oadp-operator-update-velero-CRDs oadp-operator-update-volume-snapshot-mover-CRDs
 	cd oadp-operator && \
 	cp -r . $(DEPLOY_TMP) && cd $(DEPLOY_TMP) && rm -r .git && \
 	IMG=$(IMG_OADP_OPERATOR) BUNDLE_IMG=$(IMG_OADP_OPERATOR_BUNDLE) \
@@ -50,6 +72,16 @@ oadp-operator-replace-env:
 	sed -i old 's|quay.io/konveyor/velero-plugin-for-vsm:latest|$(IMG_VELERO_PLUGIN_FOR_VSM)|g' oadp-operator/config/manager/manager.yaml
 	sed -i old 's|quay.io/konveyor/volume-snapshot-mover:latest|$(IMG_VOLUME_SNAPSHOT_MOVER)|g' oadp-operator/config/manager/manager.yaml
 
+.PHONY: oadp-operator-update-velero-CRDs
+oadp-operator-update-velero-CRDs:
+	cp velero/config/crd/v1/bases/velero.io_backups.yaml oadp-operator/config/crd/bases/velero.io_backups.yaml
+	cp velero/config/crd/v1/bases/velero.io_schedules.yaml oadp-operator/config/crd/bases/velero.io_schedules.yaml
+
+.PHONY: oadp-operator-update-volume-snapshot-mover-CRDs
+oadp-operator-update-volume-snapshot-mover-CRDs:
+	cp volume-snapshot-mover/config/crd/bases/datamover.oadp.openshift.io_volumesnapshotbackups.yaml oadp-operator/config/crd/bases/datamover.oadp.openshift.io_volumesnapshotbackups.yaml
+	cp volume-snapshot-mover/config/crd/bases/datamover.oadp.openshift.io_volumesnapshotrestores.yaml oadp-operator/config/crd/bases/datamover.oadp.openshift.io_volumesnapshotrestores.yaml
+
 oadp-operator/bin/operator-sdk:
 	cd oadp-operator && \
 	make operator-sdk
@@ -57,8 +89,8 @@ oadp-operator/bin/operator-sdk:
 .PHONY: deploy-oadp-operator
 deploy-oadp-operator: oadp-operator/bin/operator-sdk
 	oc create namespace $(NAMESPACE) || true
-	operator-sdk cleanup oadp-operator --namespace $(NAMESPACE)
-	oadp-operator/bin/operator-sdk run bundle $(IMG_OADP_OPERATOR_BUNDLE) --namespace $(NAMESPACE) --index-image=quay.io/operator-framework/opm:v1.23.0
+	operator-sdk cleanup oadp-operator --namespace $(NAMESPACE) || true
+	oadp-operator/bin/operator-sdk run bundle $(IMG_OADP_OPERATOR_BUNDLE) --namespace $(NAMESPACE)
 
 # add -buildvcs=false to `go build -v -o $APP_ROOT/bin/velero-plugin-for-vsm -mod=mod .` in Dockerfile.ubi
 velero/_output/Dockerfile.ubi:

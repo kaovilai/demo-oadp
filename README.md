@@ -3,6 +3,7 @@
 Mods to submodule are commented with `OADP-DEMO:`
 
 If you have just cloned this, run `git submodule update --init --recursive` to get the submodules.
+
 Run `make deploy` to install 1.2 demo into openshift-adp namespace
 
 Submodules for OADP 1.2 Demo
@@ -19,6 +20,63 @@ Submodules for OADP 1.2 Demo
     - VSR
 - https://github.com/migtools/velero-plugin-for-vsm/pull/7
   - go.mod has replace to use submodule in parent repo
+
+
+# Demo steps
+1. Install OADP 1.2
+   1. `make deploy`
+2. Pre-requisites
+   1. Data Mover restic secret
+   2. Cloud credentials secret
+   3. Create DPA
+   4. Set a CSI storageclass as default (unset non CSI storageclass as default)
+   5. Ensure there is a volumesnapshotclass associated with the default storageclass with velero label
+   6. Deploy test application
+      1. `oc create -f https://raw.githubusercontent.com/kaovilai/k8s-apps/main/deployments/8pvc-deployment.yaml`
+3. Run Demo
+   1. Backup application with single volumesnapshot queue
+      1. patch .spec.features.dataMover.maxConcurrentBackupVolumes to "1"
+      2. Wait for velero deployment to be updated
+      3. Create velero backup
+      4. time wait for backup to complete
+         1. ```
+            velero delete backup backup8pv --confirm
+            oc wait backup/backup8pv --for=delete --timeout=-1h
+            oc patch dpa/velero-sample -n openshift-adp --type=json -p='[{"op": "replace", "path": "/spec/features/dataMover/maxConcurrentBackupVolumes", "value": "1"}]' && \
+            oc wait deployment/velero -n openshift-adp --for=jsonpath='{.status.updatedReplicas}'=1 --timeout=-1h && \
+            velero backup create backup8pv --include-namespaces=minimal-8csivol
+            time oc wait backup/backup8pv --for=jsonpath='{.status.phase}'=Completed --timeout=-1h
+            oc get backup/backup8pv -o jsonpath='{.status.startTimestamp}' && echo ""
+            oc get backup/backup8pv -o jsonpath='{.status.completionTimestamp}'
+            ```
+   2. Backup application with multiple volumesnapshot queues
+      1. patch .spec.features.dataMover.maxConcurrentBackupVolumes to "4"
+      2. Wait for velero deployment to be updated
+      3. Create velero backup
+         1. ```
+            velero delete backup backup8pv --confirm
+            oc wait backup/backup8pv --for=delete --timeout=-1h
+            oc patch dpa/velero-sample -n openshift-adp --type=json -p='[{"op": "replace", "path": "/spec/features/dataMover/maxConcurrentBackupVolumes", "value": "4"}]' && \
+            oc wait deployment/velero -n openshift-adp --for=jsonpath='{.status.updatedReplicas}'=1 --timeout=-1h && \
+            velero backup create backup8pv --include-namespaces=minimal-8csivol
+            time oc wait backup/backup8pv --for=jsonpath='{.status.phase}'=Completed --timeout=-1h
+            oc get backup/backup8pv -o jsonpath='{.status.startTimestamp}' && echo ""
+            oc get backup/backup8pv -o jsonpath='{.status.completionTimestamp}'
+            ```
+   3. Compare times
+   4. Show that Velero default timeouts are now configurable
+
+4. Cleanup
+   1. `oc delete -f https://raw.githubusercontent.com/kaovilai/k8s-apps/main/deployments/8pvc-deployment.yaml`
+   2. ```
+      velero delete backup backup8pv --confirm
+      oc wait backup/backup8pv --for=delete --timeout=-1h
+      oc delete volumesnapshotbackups --all -n minimal-8csivol
+      oc delete volumesnapshots --all -n minimal-8csivol
+      oc delete volumesnapshots --all -n openshift-adp
+      oc delete replicationsources  --all -n openshift-adp
+      ```
+
 
 Beautiful quote from Shubham
 
