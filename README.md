@@ -3,6 +3,7 @@
 Mods to submodule are commented with `OADP-DEMO:`
 
 If you have just cloned this, run `git submodule update --init --recursive` to get the submodules.
+Run `make deploy` to install 1.2 demo into openshift-adp namespace
 
 Submodules for OADP 1.2 Demo
 - https://github.com/vmware-tanzu/velero/pull/5849
