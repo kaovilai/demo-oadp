@@ -75,6 +75,7 @@ Submodules for OADP 1.2 Demo
       oc delete volumesnapshots --all -n minimal-8csivol
       oc delete volumesnapshots --all -n openshift-adp
       oc delete replicationsources  --all -n openshift-adp
+      oc delete volumesnapshotcontents --all
       ```
 
 
