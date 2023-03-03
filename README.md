@@ -78,6 +78,19 @@ Submodules for OADP 1.2 Demo
       oc delete volumesnapshotcontents --all
       ```
 
+User facing DPA CR Changes:
+- .spec.configuration.resourceTimeouts
+  - the timeout velero will wait before timing out on a resource
+- .spec.features.dataMover.maxConcurrentBackupVolumes
+  - the number of batched volumeSnapshotBackups that can be inProgress at once, default value is 10
+- .spec.features.dataMover.maxConcurrentRestoreVolumes
+  - the number of batched volumeSnapshotRestores that can be inProgress at once, default value is 10
+- .spec.features.dataMover.pruneInterval
+  - how often (in days) to prune the datamover snapshots from the repository
+- .spec.features.dataMover.volumeOptions
+  - User can specify volume options for source and destination volumes such as accessMode, storageClassName, etc.
+- .spec.snapshotLocations.velero.config.credential
+  - We now support specifying the cloud credentials secret name in the DPA CR for the velero snapshot location
 
 Beautiful quote from Shubham
 
